@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flask-auth
+  template:
+    metadata:
+      labels:
+        app: flask-auth
+    spec:
+      containers:
+        - name: flask-auth
+          image: flask-auth-app:latest
+          ports:
+            - containerPort: 5000
