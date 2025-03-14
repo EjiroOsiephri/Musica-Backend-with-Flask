@@ -3,16 +3,18 @@ from app import db
 from app.models import User
 from flask_jwt_extended import create_access_token
 import requests
-import os
 
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
     data = request.json
+
+    # Check if user already exists
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'message': 'Email already exists'}), 400
 
+    # Create new user
     new_user = User(
         firstname=data['firstname'],
         lastname=data['lastname'],
@@ -24,7 +26,21 @@ def signup():
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({'message': 'User registered successfully'}), 201
+    # Generate JWT Token
+    access_token = create_access_token(identity=new_user.id)
+
+    # Return user details and token
+    return jsonify({
+        'message': 'User registered successfully',
+        'user': {
+            'id': new_user.id,
+            'firstname': new_user.firstname,
+            'lastname': new_user.lastname,
+            'phone': new_user.phone,
+            'email': new_user.email
+        },
+        'access_token': access_token
+    }), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -35,7 +51,18 @@ def login():
         return jsonify({'message': 'Invalid credentials'}), 401
 
     access_token = create_access_token(identity=user.id)
-    return jsonify({'access_token': access_token}), 200
+    
+    return jsonify({
+        'message': 'Login successful',
+        'user': {
+            'id': user.id,
+            'firstname': user.firstname,
+            'lastname': user.lastname,
+            'phone': user.phone,
+            'email': user.email
+        },
+        'access_token': access_token
+    }), 200
 
 @auth_bp.route('/google-login', methods=['POST'])
 def google_login():
@@ -45,12 +72,21 @@ def google_login():
 
     user = User.query.filter_by(email=user_info['email']).first()
     if not user:
-        user = User(first_name=user_info['given_name'], last_name=user_info['family_name'], email=user_info['email'], google_id=user_info['sub'])
+        user = User(
+            firstname=user_info['given_name'],
+            lastname=user_info['family_name'],
+            email=user_info['email'],
+            phone=user_info.get('phone', 'N/A'), 
+            google_id=user_info['sub']
+        )
         db.session.add(user)
         db.session.commit()
 
     access_token = create_access_token(identity=user.id)
-    return jsonify({'access_token': access_token})
+    return jsonify({
+        'message': 'Google login successful',
+        'access_token': access_token
+    })
 
 @auth_bp.route('/facebook-login', methods=['POST'])
 def facebook_login():
@@ -60,9 +96,19 @@ def facebook_login():
 
     user = User.query.filter_by(email=user_info['email']).first()
     if not user:
-        user = User(first_name=user_info['name'].split()[0], last_name=user_info['name'].split()[1], email=user_info['email'], facebook_id=user_info['id'])
+        name_parts = user_info['name'].split()
+        user = User(
+            firstname=name_parts[0],
+            lastname=name_parts[1] if len(name_parts) > 1 else "",
+            email=user_info['email'],
+            phone=user_info.get('phone', 'N/A'), 
+            facebook_id=user_info['id']
+        )
         db.session.add(user)
         db.session.commit()
 
     access_token = create_access_token(identity=user.id)
-    return jsonify({'access_token': access_token})
+    return jsonify({
+        'message': 'Facebook login successful',
+        'access_token': access_token
+    })
