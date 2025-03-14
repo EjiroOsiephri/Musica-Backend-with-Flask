@@ -5,21 +5,5 @@ services:
     build: .
     ports:
       - "5000:5000"
-    depends_on:
-      - db
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/auth_db
-
-  db:
-    image: postgres:latest
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: auth_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-
-volumes:
-  db_data:
+      - DATABASE_URL=postgresql://musicaneon_owner:npg_rXmsKn3t4jbR@ep-winter-violet-a5z1fqov-pooler.us-east-2.aws.neon.tech/musicaneon?sslmode=require
