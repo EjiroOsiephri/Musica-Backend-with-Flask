@@ -1,2 +1,7 @@
 venv/
 .env
+# Ignore SSL certificates
+cert.pem
+key.pem
+localhost.pem
+localhost-key.pem
