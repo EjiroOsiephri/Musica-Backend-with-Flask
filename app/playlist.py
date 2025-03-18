@@ -29,3 +29,27 @@ def add_to_playlist():
     db.session.commit()
 
     return jsonify({'message': 'Song added to playlist successfully'}), 201
+
+
+# ✅ Route to get all songs in a user's playlist
+@playlist_bp.route('/get-playlist', methods=['GET'])
+@jwt_required()
+def get_playlist():
+    user_id = get_jwt_identity()
+
+    # Fetch all songs for the logged-in user
+    playlist_songs = Playlist.query.filter_by(user_id=user_id).all()
+
+    # Format the response
+    songs_list = [
+        {
+            'track_id': song.track_id,
+            'title': song.title,
+            'artist': song.artist,
+            'image': song.image,
+            'preview': song.preview
+        }
+        for song in playlist_songs
+    ]
+
+    return jsonify({'playlist': songs_list}), 200
