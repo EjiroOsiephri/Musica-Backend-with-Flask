@@ -27,7 +27,8 @@ def signup():
     db.session.commit()
 
     # Generate JWT Token
-    access_token = create_access_token(identity=new_user.id)
+    
+    access_token = create_access_token(identity=str(new_user.id))
 
     # Return user details and token
     return jsonify({
@@ -50,7 +51,7 @@ def login():
     if not user or not user.check_password(data['password']):
         return jsonify({'message': 'Invalid credentials'}), 401
 
-    access_token = create_access_token(identity=user.id)
+    access_token = create_access_token(identity=str(user.id))
     
     return jsonify({
         'message': 'Login successful',
@@ -82,7 +83,7 @@ def google_login():
         db.session.add(user)
         db.session.commit()
 
-    access_token = create_access_token(identity=user.id)
+    access_token = create_access_token(identity=str(user.id))
     return jsonify({
         'message': 'Google login successful',
         'access_token': access_token
@@ -107,7 +108,7 @@ def facebook_login():
         db.session.add(user)
         db.session.commit()
 
-    access_token = create_access_token(identity=user.id)
+    access_token = create_access_token(identity=str(user.id))
     return jsonify({
         'message': 'Facebook login successful',
         'access_token': access_token

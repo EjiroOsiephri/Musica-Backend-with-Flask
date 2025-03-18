@@ -23,16 +23,17 @@ def create_app():
     bcrypt.init_app(app)
     jwt.init_app(app)
 
-    # Allow all origins (Remove restrictions)
+   
     CORS(app, supports_credentials=True, origins="*")
 
-    # Handle preflight requests for signin
+   
     @app.route("/signin", methods=["OPTIONS"])
     def signin_preflight():
         return jsonify({"message": "Preflight OK"}), 200
 
-    from app.routes import auth_bp, playlist_bp
+    from app.routes import auth_bp
+    from app.playlist import playlist_bp
     app.register_blueprint(auth_bp)
-    app.register_blueprint(playlist_bp, url_prefix="/playlists")  # ✅ Register Playlist routes
+    app.register_blueprint(playlist_bp, url_prefix="/playlists")  
 
     return app
