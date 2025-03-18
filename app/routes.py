@@ -18,7 +18,7 @@ def signup():
     new_user = User(
         firstname=data['firstname'],
         lastname=data['lastname'],
-        phone=data['phone'],
+        phone=data.get('phone', '0000000000'),  # Default phone number if missing
         email=data['email']
     )
     new_user.set_password(data['password'])
@@ -27,10 +27,8 @@ def signup():
     db.session.commit()
 
     # Generate JWT Token
-    
     access_token = create_access_token(identity=str(new_user.id))
 
-    # Return user details and token
     return jsonify({
         'message': 'User registered successfully',
         'user': {
@@ -52,7 +50,7 @@ def login():
         return jsonify({'message': 'Invalid credentials'}), 401
 
     access_token = create_access_token(identity=str(user.id))
-    
+
     return jsonify({
         'message': 'Login successful',
         'user': {
@@ -74,14 +72,17 @@ def google_login():
     user = User.query.filter_by(email=user_info['email']).first()
     if not user:
         user = User(
-            firstname=user_info['given_name'],
-            lastname=user_info['family_name'],
+            firstname=user_info.get('given_name', 'Unknown'),
+            lastname=user_info.get('family_name', 'User'),
             email=user_info['email'],
-            phone=user_info.get('phone', 'N/A'), 
-            google_id=user_info['sub']
+            phone='0000000000',  # Dummy phone number for OAuth users
+            google_id=user_info.get('sub', '')  # Ensure google_id is set
         )
         db.session.add(user)
         db.session.commit()
+
+    if not user.id:
+        return jsonify({"error": "User ID missing"}), 500  # Ensure user ID is valid
 
     access_token = create_access_token(identity=str(user.id))
     return jsonify({
@@ -100,13 +101,16 @@ def facebook_login():
         name_parts = user_info['name'].split()
         user = User(
             firstname=name_parts[0],
-            lastname=name_parts[1] if len(name_parts) > 1 else "",
+            lastname=name_parts[1] if len(name_parts) > 1 else "User",
             email=user_info['email'],
-            phone=user_info.get('phone', 'N/A'), 
-            facebook_id=user_info['id']
+            phone='0000000000',  # Dummy phone number for OAuth users
+            facebook_id=user_info.get('id', '')  # Ensure facebook_id is set
         )
         db.session.add(user)
         db.session.commit()
+
+    if not user.id:
+        return jsonify({"error": "User ID missing"}), 500  # Ensure user ID is valid
 
     access_token = create_access_token(identity=str(user.id))
     return jsonify({
