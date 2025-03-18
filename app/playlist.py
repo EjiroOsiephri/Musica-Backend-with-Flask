@@ -1,21 +1,59 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request_optional
 from app import db
 from app.models import Playlist, User
+import requests
 
 playlist_bp = Blueprint('playlist', __name__)
 
-@playlist_bp.route('/add-to-playlist', methods=['POST'])
-@jwt_required()
-def add_to_playlist():
-    user_id = get_jwt_identity()
-    data = request.json
+# ✅ Function to verify Google Token
+def verify_google_token(token):
+    response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
+    if response.status_code == 200:
+        return response.json()  # Returns user data if token is valid
+    return None
 
-    # Validate data
+# ✅ Function to verify Facebook Token
+def verify_facebook_token(token):
+    response = requests.get(f"https://graph.facebook.com/me?access_token={token}&fields=id,email")
+    if response.status_code == 200:
+        return response.json()  # Returns user data if token is valid
+    return None
+
+# ✅ Route to add song to playlist
+@playlist_bp.route('/add-to-playlist', methods=['POST'])
+@verify_jwt_in_request_optional
+def add_to_playlist():
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+
+        # Try JWT authentication first
+        try:
+            user_id = get_jwt_identity()
+        except Exception:
+            # If JWT fails, check if it's an OAuth token
+            google_data = verify_google_token(token)
+            facebook_data = verify_facebook_token(token)
+
+            if google_data:
+                user = User.query.filter_by(email=google_data['email']).first()
+                if user:
+                    user_id = user.id
+            elif facebook_data:
+                user = User.query.filter_by(email=facebook_data['email']).first()
+                if user:
+                    user_id = user.id
+
+    if not user_id:
+        return jsonify({'message': 'Unauthorized'}), 401
+
+    data = request.json
     if not all(key in data for key in ['track_id', 'title', 'artist', 'image', 'preview']):
         return jsonify({'message': 'Missing required fields'}), 400
 
-    # Create a new playlist entry
     new_song = Playlist(
         user_id=user_id,
         track_id=data['track_id'],
@@ -30,17 +68,35 @@ def add_to_playlist():
 
     return jsonify({'message': 'Song added to playlist successfully'}), 201
 
-
-# ✅ Route to get all songs in a user's playlist
+# ✅ Route to get user playlist
 @playlist_bp.route('/get-playlist', methods=['GET'])
-@jwt_required()
+@verify_jwt_in_request_optional
 def get_playlist():
-    user_id = get_jwt_identity()
+    user_id = None
+    auth_header = request.headers.get("Authorization")
 
-    # Fetch all songs for the logged-in user
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+
+        try:
+            user_id = get_jwt_identity()
+        except Exception:
+            google_data = verify_google_token(token)
+            facebook_data = verify_facebook_token(token)
+
+            if google_data:
+                user = User.query.filter_by(email=google_data['email']).first()
+                if user:
+                    user_id = user.id
+            elif facebook_data:
+                user = User.query.filter_by(email=facebook_data['email']).first()
+                if user:
+                    user_id = user.id
+
+    if not user_id:
+        return jsonify({'message': 'Unauthorized'}), 401
+
     playlist_songs = Playlist.query.filter_by(user_id=user_id).all()
-
-    # Format the response
     songs_list = [
         {
             'track_id': song.track_id,
