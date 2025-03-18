@@ -1,5 +1,18 @@
 from app import db, bcrypt
 
+
+class Playlist(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    track_id = db.Column(db.String(255), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    artist = db.Column(db.String(255), nullable=False)
+    image = db.Column(db.String(255), nullable=True)
+    preview = db.Column(db.String(255), nullable=True)
+
+    user = db.relationship('User', backref=db.backref('playlists', lazy=True))
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     firstname = db.Column(db.String(100), nullable=False)
