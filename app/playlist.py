@@ -1,30 +1,30 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
 from app import db
 from app.models import Playlist, User
 import requests
 
 playlist_bp = Blueprint('playlist', __name__)
 
-# ✅ Function to verify Google Token
+# Function to verify Google Token
 def verify_google_token(token):
     response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
     if response.status_code == 200:
-        return response.json()  # Returns user data if token is valid
+        return response.json()
     return None
 
-# ✅ Function to verify Facebook Token
+# Function to verify Facebook Token
 def verify_facebook_token(token):
     response = requests.get(f"https://graph.facebook.com/me?access_token={token}&fields=id,email")
     if response.status_code == 200:
-        return response.json()  # Returns user data if token is valid
+        return response.json()
     return None
 
-# ✅ Route to add song to playlist
+# Route to add song to playlist
 @playlist_bp.route('/add-to-playlist', methods=['POST'])
 @jwt_required(optional=True)
 def add_to_playlist():
-    user_id = get_jwt_identity()  # ✅ Get user ID from JWT if available
+    user_id = get_jwt_identity()
     auth_header = request.headers.get("Authorization")
 
     if not user_id and auth_header and auth_header.startswith("Bearer "):
@@ -37,15 +37,27 @@ def add_to_playlist():
         if google_data:
             user = User.query.filter_by(email=google_data['email']).first()
             if user:
-                user_id = user.id
+                # Generate JWT for Google user
+                access_token = create_access_token(identity=str(user.id))
+                return jsonify({
+                    'message': 'Google login successful',
+                    'access_token': access_token
+                }), 200
         elif facebook_data:
             user = User.query.filter_by(email=facebook_data['email']).first()
             if user:
-                user_id = user.id
+                # Generate JWT for Facebook user
+                access_token = create_access_token(identity=str(user.id))
+                return jsonify({
+                    'message': 'Facebook login successful',
+                    'access_token': access_token
+                }), 200
 
+    # If JWT is present or was generated above, proceed with the request
     if not user_id:
         return jsonify({'message': 'Unauthorized'}), 401
 
+    # If we reach here, user_id should be valid
     data = request.json
     if not all(key in data for key in ['track_id', 'title', 'artist', 'image', 'preview']):
         return jsonify({'message': 'Missing required fields'}), 400
@@ -64,11 +76,11 @@ def add_to_playlist():
 
     return jsonify({'message': 'Song added to playlist successfully'}), 201
 
-# ✅ Route to get user playlist
+# Route to get user playlist
 @playlist_bp.route('/get-playlist', methods=['GET'])
 @jwt_required(optional=True)
 def get_playlist():
-    user_id = get_jwt_identity()  # ✅ Get user ID from JWT if available
+    user_id = get_jwt_identity()
     auth_header = request.headers.get("Authorization")
 
     if not user_id and auth_header and auth_header.startswith("Bearer "):
@@ -81,12 +93,23 @@ def get_playlist():
         if google_data:
             user = User.query.filter_by(email=google_data['email']).first()
             if user:
-                user_id = user.id
+                # Generate JWT for Google user
+                access_token = create_access_token(identity=str(user.id))
+                return jsonify({
+                    'message': 'Google login successful',
+                    'access_token': access_token
+                }), 200
         elif facebook_data:
             user = User.query.filter_by(email=facebook_data['email']).first()
             if user:
-                user_id = user.id
+                # Generate JWT for Facebook user
+                access_token = create_access_token(identity=str(user.id))
+                return jsonify({
+                    'message': 'Facebook login successful',
+                    'access_token': access_token
+                }), 200
 
+    # If JWT is present or was generated above, proceed with the request
     if not user_id:
         return jsonify({'message': 'Unauthorized'}), 401
 

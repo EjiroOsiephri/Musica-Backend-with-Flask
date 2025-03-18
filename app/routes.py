@@ -2,7 +2,11 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import User
 from flask_jwt_extended import create_access_token
+from flask_wtf.csrf import generate_csrf
 import requests
+
+auth_bp = Blueprint('auth', __name__)
+
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -64,41 +68,6 @@ def login():
     }), 200
 
 
-@auth_bp.route('/google-login', methods=['POST'])
-def google_login():
-    token = request.json.get("token")
-
-    # Validate Google token and get user info
-    response = requests.get(f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={token}")
-    user_info = response.json()
-
-    if 'email' not in user_info:
-        return jsonify({'error': 'Invalid Google token'}), 401
-
-    # Check if user exists
-    user = User.query.filter_by(email=user_info['email']).first()
-    
-    if not user:
-        user = User(
-            firstname=user_info.get('given_name', 'Unknown'),
-            lastname=user_info.get('family_name', 'User'),
-            email=user_info['email'],
-            phone='0000000000',  # Dummy phone number for OAuth users
-            google_id=user_info.get('sub', '')  # Store Google ID
-        )
-        db.session.add(user)
-        db.session.commit()
-
-    if not user.id:
-        return jsonify({"error": "User ID missing"}), 500 
-
-    # Generate JWT access token for the user
-    access_token = create_access_token(identity=str(user.id)) 
-
-    return jsonify({
-        'message': 'Google login successful',
-        'access_token': access_token
-    })
 
 @auth_bp.route('/facebook-login', methods=['POST'])
 def facebook_login():
@@ -135,3 +104,61 @@ def facebook_login():
         'message': 'Facebook login successful',
         'access_token': access_token
     })
+
+
+
+def validate_google_token(token):
+    """Validate Google OAuth token and return user info"""
+    try:
+        response = requests.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException:
+        return None
+
+@auth_bp.route('/google-login', methods=['POST'])
+def google_login():
+    google_token = request.json.get("token")
+    
+    # Validate Google token
+    user_info = validate_google_token(google_token)
+    if not user_info or 'email' not in user_info:
+        return jsonify({'error': 'Invalid Google token'}), 401
+
+    # Find or create user
+    user = User.query.filter_by(email=user_info['email']).first()
+    if not user:
+        user = User(
+            firstname=user_info.get('given_name', 'Unknown'),
+            lastname=user_info.get('family_name', 'User'),
+            email=user_info['email'],
+            phone='0000000000',
+            google_id=user_info.get('sub', '')
+        )
+        db.session.add(user)
+        db.session.commit()
+
+    # Generate identical JWT to email login
+    access_token = create_access_token(
+        identity=str(user.id),
+        additional_claims={
+            'fresh': False,
+            'type': 'access',
+            'csrf': generate_csrf()
+        }
+    )
+
+    return jsonify({
+        'message': 'Google login successful',
+        'access_token': access_token,
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'firstname': user.firstname,
+            'lastname': user.lastname
+        }
+    }), 200
