@@ -124,12 +124,12 @@ def validate_google_token(token):
 def google_login():
     google_token = request.json.get("token")
     
-    # Validate Google token
+ 
     user_info = validate_google_token(google_token)
     if not user_info or 'email' not in user_info:
         return jsonify({'error': 'Invalid Google token'}), 401
 
-    # Find or create user
+    
     user = User.query.filter_by(email=user_info['email']).first()
     if not user:
         user = User(
@@ -142,15 +142,7 @@ def google_login():
         db.session.add(user)
         db.session.commit()
 
-    # Generate identical JWT to email login
-    access_token = create_access_token(
-        identity=str(user.id),
-        additional_claims={
-            'fresh': False,
-            'type': 'access',
-            'csrf': generate_csrf()
-        }
-    )
+    access_token = create_access_token(identity=str(user.id))
 
     return jsonify({
         'message': 'Google login successful',
