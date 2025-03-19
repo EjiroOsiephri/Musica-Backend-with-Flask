@@ -7,8 +7,11 @@ class Playlist(db.Model):
     track_id = db.Column(db.String(255), nullable=False)
     title = db.Column(db.String(255), nullable=False)
     artist = db.Column(db.String(255), nullable=False)
-    image = db.Column(db.String(255), nullable=True)
-    preview = db.Column(db.String(255), nullable=True)
+    album = db.Column(db.String(255), nullable=False)  # ✅ Added album field
+    duration = db.Column(db.String(20), nullable=False)  # ✅ Added duration field
+    image = db.Column(db.String(255), nullable=False)  # ✅ Made image non-nullable
+    preview = db.Column(db.String(255), nullable=False)  # ✅ Made preview non-nullable
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())  # ✅ Added timestamp
 
     user = db.relationship('User', backref=db.backref('playlists', lazy=True))
 

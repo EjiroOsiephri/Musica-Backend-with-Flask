@@ -68,7 +68,9 @@ def add_to_playlist():
         title=data['title'],
         artist=data['artist'],
         image=data.get('image', ''),
-        preview=data.get('preview', '')
+        preview=data.get('preview', ''),
+        album=data.get('album', ''), 
+        duration=data.get('duration', '')  
     )
 
     db.session.add(new_song)
@@ -120,7 +122,10 @@ def get_playlist():
             'title': song.title,
             'artist': song.artist,
             'image': song.image,
-            'preview': song.preview
+            'preview': song.preview,
+            'album': song.album,
+            'duration': song.duration
+
         }
         for song in playlist_songs
     ]
