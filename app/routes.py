@@ -5,6 +5,9 @@ from app import db
 from app.models import User
 from flask_jwt_extended import create_access_token
 from flask_wtf.csrf import generate_csrf
+from datetime import timedelta
+
+
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -31,7 +34,7 @@ def signup():
     db.session.add(new_user)
     db.session.commit()
 
-    access_token = create_access_token(identity=str(new_user.id))
+    access_token = create_access_token(identity=str(new_user.id),expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'User registered successfully',
@@ -58,7 +61,7 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({'message': 'Invalid credentials'}), 401
 
-    access_token = create_access_token(identity=str(user.id))
+    access_token = create_access_token(identity=str(user.id),expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'Login successful',
@@ -104,7 +107,7 @@ def google_login():
         db.session.add(user)
         db.session.commit()
 
-    access_token = create_access_token(identity=str(user.id))
+    access_token = create_access_token(identity=str(user.id),expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'Google login successful',
@@ -174,7 +177,7 @@ def facebook_login():
         return jsonify({"error": "User ID missing"}), 500  # Ensure user ID is valid
 
     # Generate JWT access token for the user
-    access_token = create_access_token(identity=str(user.id))
+    access_token = create_access_token(identity=str(user.id),expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'Facebook login successful',

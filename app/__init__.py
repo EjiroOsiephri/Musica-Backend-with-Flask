@@ -6,6 +6,7 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 load_dotenv()
 
@@ -18,10 +19,14 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
+     # Set JWT expiration time to 7 days
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=7)
+
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
+
 
    
     CORS(app, supports_credentials=True, origins="*")
