@@ -77,11 +77,7 @@ def login():
 
 def validate_google_token(token):
     try:
-        response = requests.get(
-            "https://www.googleapis.com/oauth2/v3/userinfo",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=10
-        )
+        response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
         response.raise_for_status()
         return response.json()
     except requests.RequestException:
