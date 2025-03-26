@@ -1,22 +1,26 @@
 import os
 import requests
 from flask import Blueprint, request, jsonify
-from app import db
+from app import db, bcrypt
 from app.models import User
-from flask_jwt_extended import create_access_token
 from flask_wtf.csrf import generate_csrf
+from flask_jwt_extended import (
+    create_access_token,
+    jwt_required,
+    get_jwt_identity
+)
 from datetime import timedelta
-
-
+from werkzeug.utils import secure_filename
 
 auth_bp = Blueprint('auth', __name__)
 
+# ✅ User Signup
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
     data = request.json or {}
     email = data.get('email')
     password = data.get('password')
-    
+
     if not email or not password:
         return jsonify({'message': 'Email and password are required'}), 400
 
@@ -34,7 +38,7 @@ def signup():
     db.session.add(new_user)
     db.session.commit()
 
-    access_token = create_access_token(identity=str(new_user.id),expires_delta=timedelta(days=7))
+    access_token = create_access_token(identity=new_user.id, expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'User registered successfully',
@@ -48,6 +52,8 @@ def signup():
         'access_token': access_token
     }), 201
 
+
+# ✅ User Login
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.json or {}
@@ -61,7 +67,7 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({'message': 'Invalid credentials'}), 401
 
-    access_token = create_access_token(identity=str(user.id),expires_delta=timedelta(days=7))
+    access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'Login successful',
@@ -75,6 +81,8 @@ def login():
         'access_token': access_token
     }), 200
 
+
+# ✅ Validate Google Token
 def validate_google_token(token):
     try:
         response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
@@ -83,11 +91,13 @@ def validate_google_token(token):
     except requests.RequestException:
         return None
 
+
+# ✅ Google Login
 @auth_bp.route('/google-login', methods=['POST'])
 def google_login():
     google_token = request.json.get("token")
     user_info = validate_google_token(google_token)
-    
+
     if not user_info or 'email' not in user_info:
         return jsonify({'error': 'Invalid Google token'}), 401
 
@@ -103,7 +113,7 @@ def google_login():
         db.session.add(user)
         db.session.commit()
 
-    access_token = create_access_token(identity=str(user.id),expires_delta=timedelta(days=7))
+    access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'Google login successful',
@@ -116,66 +126,124 @@ def google_login():
         }
     }), 200
 
+
+# ✅ Facebook Login
 def exchange_facebook_code_for_token(code):
-    """Exchange Facebook OAuth code for an access token."""
     try:
         response = requests.get(
             "https://graph.facebook.com/v12.0/oauth/access_token",
             params={
-                "client_id": os.environ.get("FACEBOOK_CLIENT_ID"),
-                "client_secret": os.environ.get("FACEBOOK_CLIENT_SECRET"),
-                "redirect_uri": os.environ.get("FACEBOOK_REDIRECT_URI"),
+                "client_id": os.getenv("FACEBOOK_CLIENT_ID"),
+                "client_secret": os.getenv("FACEBOOK_CLIENT_SECRET"),
+                "redirect_uri": os.getenv("FACEBOOK_REDIRECT_URI"),
                 "code": code,
             },
         )
         response.raise_for_status()
         return response.json().get("access_token")
-    except requests.RequestException as e:
-        print(f"Error exchanging Facebook code for token: {e}")
+    except requests.RequestException:
         return None
+
 
 @auth_bp.route('/facebook-login', methods=['POST'])
 def facebook_login():
     code = request.json.get("token")
 
-    # Exchange the code for an access token
     access_token = exchange_facebook_code_for_token(code)
     if not access_token:
         return jsonify({'error': 'Failed to exchange Facebook code for token'}), 401
 
-    # Fetch user info using the access token
     response = requests.get(
         "https://graph.facebook.com/me",
-        params={
-            "access_token": access_token,
-            "fields": "id,first_name,last_name,email",
-        },
+        params={"access_token": access_token, "fields": "id,first_name,last_name,email"}
     )
     user_info = response.json()
 
     if 'email' not in user_info:
         return jsonify({'error': 'Invalid Facebook token'}), 401
 
-    # Find or create user
     user = User.query.filter_by(email=user_info['email']).first()
     if not user:
         user = User(
             firstname=user_info.get('first_name', 'Unknown'),
             lastname=user_info.get('last_name', 'User'),
             email=user_info['email'],
-            phone='0000000000',  # Dummy phone number for OAuth users
-            facebook_id=user_info.get('id', '')  # Store Facebook ID
+            phone='0000000000',
+            facebook_id=user_info.get('id', '')
         )
         db.session.add(user)
         db.session.commit()
 
-    if not user.id:
-        return jsonify({"error": "User ID missing"}), 500  # Ensure user ID is valid
+    access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
 
-    # Generate JWT access token for the user
-    access_token = create_access_token(identity=str(user.id),expires_delta=timedelta(days=7))
+    return jsonify({'message': 'Facebook login successful', 'access_token': access_token}), 200
+
+
+# ✅ Profile Routes
+@auth_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    user = User.query.get_or_404(get_jwt_identity())
 
     return jsonify({
-        'message': 'Facebook login successful',
-        'access_token': access_token
-    })
+        'id': user.id,
+        'firstname': user.firstname,
+        'lastname': user.lastname,
+        'email': user.email,
+        'phone': user.phone,
+        'profile_picture': user.profile_picture
+    }), 200
+
+
+@auth_bp.route('/profile/update', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    user = User.query.get_or_404(get_jwt_identity())
+    data = request.json or {}
+
+    user.firstname = data.get('firstname', user.firstname)
+    user.lastname = data.get('lastname', user.lastname)
+    user.phone = data.get('phone', user.phone)
+
+    if data.get('password'):
+        user.set_password(data['password'])
+
+    db.session.commit()
+    return jsonify({'message': 'Profile updated successfully'}), 200
+
+
+UPLOAD_FOLDER = 'uploads/profile_pictures'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@auth_bp.route('/profile/upload', methods=['POST'])
+@jwt_required()
+def upload_profile_picture():
+    user = User.query.get_or_404(get_jwt_identity())
+
+    file = request.files.get('file')
+    if not file or not allowed_file(file.filename):
+        return jsonify({'message': 'Invalid file type'}), 400
+
+    filename = secure_filename(f"user_{user.id}_{file.filename}")
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(file_path)
+
+    user.profile_picture = file_path
+    db.session.commit()
+
+    return jsonify({'message': 'Profile picture updated', 'profile_picture': file_path}), 200
+
+
+@auth_bp.route('/profile/delete', methods=['DELETE'])
+@jwt_required()
+def delete_account():
+    user = User.query.get_or_404(get_jwt_identity())
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({'message': 'Account deleted successfully'}), 200
