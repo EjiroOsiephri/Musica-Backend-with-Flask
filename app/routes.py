@@ -247,3 +247,22 @@ def delete_account():
     db.session.commit()
 
     return jsonify({'message': 'Account deleted successfully'}), 200
+
+
+@auth_bp.route('/api/artist-image')
+def get_artist_image():
+    artist_name = request.args.get("artist")
+    if not artist_name:
+        return jsonify({"error": "Missing artist parameter"}), 400
+
+    deezer_url = f"https://api.deezer.com/search/artist?q={artist_name}"
+    response = requests.get(deezer_url)
+
+    if response.status_code != 200:
+        return jsonify({"error": "Failed to fetch artist"}), response.status_code
+
+    data = response.json()
+    if "data" in data and len(data["data"]) > 0:
+        return jsonify({"image": data["data"][0].get("picture_medium", "")})
+
+    return jsonify({"image": "/images/default-artist.jpg"})  # Fallback image
