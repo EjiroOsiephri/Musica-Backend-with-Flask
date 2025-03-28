@@ -244,15 +244,27 @@ def upload_profile_picture():
     return jsonify({'message': 'Profile picture updated', 'profile_picture': profile_url}), 200
 
 
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    return jsonify({'message': 'Logged out successfully'}), 200
+
+# ✅ Delete Account Route (Improved)
 @auth_bp.route('/profile/delete', methods=['DELETE'])
 @jwt_required()
 def delete_account():
     user = User.query.get_or_404(get_jwt_identity())
+
+    # Delete profile picture if it exists
+    if user.profile_picture:
+        file_path = os.path.join(UPLOAD_FOLDER, user.profile_picture)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
     db.session.delete(user)
     db.session.commit()
 
     return jsonify({'message': 'Account deleted successfully'}), 200
-
 
 @auth_bp.route('/api/artist-image')
 def get_artist_image():
