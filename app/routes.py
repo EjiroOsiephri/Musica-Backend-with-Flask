@@ -11,6 +11,8 @@ from flask_jwt_extended import (
 )
 from datetime import timedelta
 from werkzeug.utils import secure_filename
+from flask import send_from_directory
+
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -179,11 +181,12 @@ def facebook_login():
     return jsonify({'message': 'Facebook login successful', 'access_token': access_token}), 200
 
 
-# ✅ Profile Routes
 @auth_bp.route('/profile', methods=['GET'])
 @jwt_required()
 def get_profile():
     user = User.query.get_or_404(get_jwt_identity())
+
+    profile_url = f"{request.host_url}uploads/profile_pictures/{user.profile_picture}" if user.profile_picture else None
 
     return jsonify({
         'id': user.id,
@@ -191,7 +194,7 @@ def get_profile():
         'lastname': user.lastname,
         'email': user.email,
         'phone': user.phone,
-        'profile_picture': user.profile_picture
+        'profile_picture': profile_url
     }), 200
 
 
@@ -212,9 +215,9 @@ def update_profile():
     return jsonify({'message': 'Profile updated successfully'}), 200
 
 
-UPLOAD_FOLDER = 'uploads/profile_pictures'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads/profile_pictures')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)  
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -230,13 +233,15 @@ def upload_profile_picture():
         return jsonify({'message': 'Invalid file type'}), 400
 
     filename = secure_filename(f"user_{user.id}_{file.filename}")
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    file_path = os.path.join(UPLOAD_FOLDER, filename)  
     file.save(file_path)
 
-    user.profile_picture = file_path
+    user.profile_picture = filename  
     db.session.commit()
 
-    return jsonify({'message': 'Profile picture updated', 'profile_picture': file_path}), 200
+    profile_url = f"{request.host_url}uploads/profile_pictures/{filename}"  
+
+    return jsonify({'message': 'Profile picture updated', 'profile_picture': profile_url}), 200
 
 
 @auth_bp.route('/profile/delete', methods=['DELETE'])
@@ -266,3 +271,7 @@ def get_artist_image():
         return jsonify({"image": data["data"][0].get("picture_medium", "")})
 
     return jsonify({"image": "/images/default-artist.jpg"})  # Fallback image
+
+@auth_bp.route('/uploads/profile_pictures/<filename>')
+def serve_profile_picture(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
