@@ -133,7 +133,7 @@ def get_playlist():
     return jsonify({'playlist': songs_list}), 200
 
 
-@playlist_bp.route('/delete-from-playlist/<int:track_id>', methods=['DELETE'])
+@playlist_bp.route('/delete-from-playlist/<string:track_id>', methods=['DELETE'])
 @jwt_required(optional=True)
 def delete_from_playlist(track_id):
     user_id = get_jwt_identity()
