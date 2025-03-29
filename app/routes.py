@@ -259,21 +259,28 @@ def logout():
     return jsonify({'message': 'Logged out successfully'}), 200
 
 
+
 @auth_bp.route('/profile/delete', methods=['DELETE'])
 @jwt_required()
 def delete_account():
-    user = User.query.get_or_404(get_jwt_identity())
+    try:
+        user = User.query.get_or_404(get_jwt_identity())
 
-   
-    if user.profile_picture:
-        file_path = os.path.join(UPLOAD_FOLDER, user.profile_picture)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+       
+        if user.profile_picture and user.profile_picture.strip():
+            file_path = os.path.join(UPLOAD_FOLDER, user.profile_picture)
+            if os.path.exists(file_path):
+                os.remove(file_path)  
 
-    db.session.delete(user)
-    db.session.commit()
+        db.session.delete(user) 
+        db.session.commit()
 
-    return jsonify({'message': 'Account deleted successfully'}), 200
+        return jsonify({'message': 'Account deleted successfully'}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
+    
+
 
 @auth_bp.route('/api/artist-image')
 def get_artist_image():
