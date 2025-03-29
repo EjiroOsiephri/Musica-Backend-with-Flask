@@ -16,13 +16,12 @@ from flask import send_from_directory
 
 auth_bp = Blueprint('auth', __name__)
 
-# ✅ User Signup
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
     data = request.json or {}
     email = data.get('email')
     password = data.get('password')
-
+    
     if not email or not password:
         return jsonify({'message': 'Email and password are required'}), 400
 
@@ -40,8 +39,7 @@ def signup():
     db.session.add(new_user)
     db.session.commit()
 
-    # Convert user_id to string for access token
-    access_token = create_access_token(identity=str(new_user.id), expires_delta=timedelta(days=7))
+    access_token = create_access_token(identity=str(new_user.id))
 
     return jsonify({
         'message': 'User registered successfully',
@@ -55,8 +53,6 @@ def signup():
         'access_token': access_token
     }), 201
 
-
-# ✅ User Login
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.json or {}
@@ -70,8 +66,7 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({'message': 'Invalid credentials'}), 401
 
-    # Convert user_id to string for access token
-    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(days=7))
+    access_token = create_access_token(identity=str(user.id))
 
     return jsonify({
         'message': 'Login successful',
@@ -85,23 +80,23 @@ def login():
         'access_token': access_token
     }), 200
 
-
-# ✅ Validate Google Token
 def validate_google_token(token):
     try:
-        response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
+        response = requests.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10
+        )
         response.raise_for_status()
         return response.json()
     except requests.RequestException:
         return None
 
-
-# ✅ Google Login
 @auth_bp.route('/google-login', methods=['POST'])
 def google_login():
     google_token = request.json.get("token")
     user_info = validate_google_token(google_token)
-
+    
     if not user_info or 'email' not in user_info:
         return jsonify({'error': 'Invalid Google token'}), 401
 
@@ -117,8 +112,7 @@ def google_login():
         db.session.add(user)
         db.session.commit()
 
-    # Convert user_id to string for access token
-    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(days=7))
+    access_token = create_access_token(identity=str(user.id))
 
     return jsonify({
         'message': 'Google login successful',
@@ -131,59 +125,69 @@ def google_login():
         }
     }), 200
 
-
-# ✅ Facebook Login Helper Function
 def exchange_facebook_code_for_token(code):
+    """Exchange Facebook OAuth code for an access token."""
     try:
         response = requests.get(
             "https://graph.facebook.com/v12.0/oauth/access_token",
             params={
-                "client_id": os.getenv("FACEBOOK_CLIENT_ID"),
-                "client_secret": os.getenv("FACEBOOK_CLIENT_SECRET"),
-                "redirect_uri": os.getenv("FACEBOOK_REDIRECT_URI"),
+                "client_id": os.environ.get("FACEBOOK_CLIENT_ID"),
+                "client_secret": os.environ.get("FACEBOOK_CLIENT_SECRET"),
+                "redirect_uri": os.environ.get("FACEBOOK_REDIRECT_URI"),
                 "code": code,
             },
         )
         response.raise_for_status()
         return response.json().get("access_token")
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(f"Error exchanging Facebook code for token: {e}")
         return None
 
-
-# ✅ Facebook Login Route
 @auth_bp.route('/facebook-login', methods=['POST'])
 def facebook_login():
     code = request.json.get("token")
 
+    # Exchange the code for an access token
     access_token = exchange_facebook_code_for_token(code)
     if not access_token:
         return jsonify({'error': 'Failed to exchange Facebook code for token'}), 401
 
+    # Fetch user info using the access token
     response = requests.get(
         "https://graph.facebook.com/me",
-        params={"access_token": access_token, "fields": "id,first_name,last_name,email"}
+        params={
+            "access_token": access_token,
+            "fields": "id,first_name,last_name,email",
+        },
     )
     user_info = response.json()
 
     if 'email' not in user_info:
         return jsonify({'error': 'Invalid Facebook token'}), 401
 
+    # Find or create user
     user = User.query.filter_by(email=user_info['email']).first()
     if not user:
         user = User(
             firstname=user_info.get('first_name', 'Unknown'),
             lastname=user_info.get('last_name', 'User'),
             email=user_info['email'],
-            phone='0000000000',
-            facebook_id=user_info.get('id', '')
+            phone='0000000000',  # Dummy phone number for OAuth users
+            facebook_id=user_info.get('id', '')  # Store Facebook ID
         )
         db.session.add(user)
         db.session.commit()
 
-    # Convert user_id to string for access token
-    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(days=7))
+    if not user.id:
+        return jsonify({"error": "User ID missing"}), 500  # Ensure user ID is valid
 
-    return jsonify({'message': 'Facebook login successful', 'access_token': access_token}), 200
+    # Generate JWT access token for the user
+    access_token = create_access_token(identity=str(user.id))
+
+    return jsonify({
+        'message': 'Facebook login successful',
+        'access_token': access_token
+    }), 200
 
 
 @auth_bp.route('/profile', methods=['GET'])
