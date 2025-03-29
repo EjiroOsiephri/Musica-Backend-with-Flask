@@ -6,6 +6,41 @@ import requests
 
 playlist_bp = Blueprint('playlist', __name__)
 
+
+@playlist_bp.route('/delete-from-playlist/<string:track_id>', methods=['DELETE'])
+@jwt_required(optional=True)
+def delete_from_playlist(track_id):
+    user_id = get_jwt_identity()
+    auth_header = request.headers.get("Authorization")
+
+    if not user_id and auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        
+        google_data = verify_google_token(token)
+        facebook_data = verify_facebook_token(token)
+
+        if google_data:
+            user = User.query.filter_by(email=google_data['email']).first()
+            if user:
+                user_id = user.id
+        elif facebook_data:
+            user = User.query.filter_by(email=facebook_data['email']).first()
+            if user:
+                user_id = user.id
+
+    if not user_id:
+        return jsonify({'message': 'Unauthorized'}), 401
+
+    song = Playlist.query.filter_by(user_id=user_id, track_id=str(track_id)).first()
+
+    if not song:
+        return jsonify({'message': 'Song not found in playlist'}), 404
+
+    db.session.delete(song)
+    db.session.commit()
+
+    return jsonify({'message': 'Song deleted successfully'}), 200
+
 # Function to verify Google Token
 def verify_google_token(token):
     response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
@@ -133,37 +168,4 @@ def get_playlist():
     return jsonify({'playlist': songs_list}), 200
 
 
-@playlist_bp.route('/delete-from-playlist/<string:track_id>', methods=['DELETE'])
-@jwt_required(optional=True)
-def delete_from_playlist(track_id):
-    user_id = get_jwt_identity()
-    auth_header = request.headers.get("Authorization")
 
-    if not user_id and auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-
-       
-        google_data = verify_google_token(token)
-        facebook_data = verify_facebook_token(token)
-
-        if google_data:
-            user = User.query.filter_by(email=google_data['email']).first()
-            if user:
-                user_id = user.id
-        elif facebook_data:
-            user = User.query.filter_by(email=facebook_data['email']).first()
-            if user:
-                user_id = user.id
-
-    if not user_id:
-        return jsonify({'message': 'Unauthorized'}), 401
-
-    song = Playlist.query.filter_by(user_id=user_id, track_id=track_id).first()
-
-    if not song:
-        return jsonify({'message': 'Song not found in playlist'}), 404
-
-    db.session.delete(song)
-    db.session.commit()
-
-    return jsonify({'message': 'Song deleted from playlist successfully'}), 200
