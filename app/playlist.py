@@ -131,3 +131,39 @@ def get_playlist():
     ]
 
     return jsonify({'playlist': songs_list}), 200
+
+
+@playlist_bp.route('/delete-from-playlist/<int:track_id>', methods=['DELETE'])
+@jwt_required(optional=True)
+def delete_from_playlist(track_id):
+    user_id = get_jwt_identity()
+    auth_header = request.headers.get("Authorization")
+
+    if not user_id and auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+
+       
+        google_data = verify_google_token(token)
+        facebook_data = verify_facebook_token(token)
+
+        if google_data:
+            user = User.query.filter_by(email=google_data['email']).first()
+            if user:
+                user_id = user.id
+        elif facebook_data:
+            user = User.query.filter_by(email=facebook_data['email']).first()
+            if user:
+                user_id = user.id
+
+    if not user_id:
+        return jsonify({'message': 'Unauthorized'}), 401
+
+    song = Playlist.query.filter_by(user_id=user_id, track_id=track_id).first()
+
+    if not song:
+        return jsonify({'message': 'Song not found in playlist'}), 404
+
+    db.session.delete(song)
+    db.session.commit()
+
+    return jsonify({'message': 'Song deleted from playlist successfully'}), 200
