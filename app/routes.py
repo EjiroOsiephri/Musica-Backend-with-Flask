@@ -40,7 +40,8 @@ def signup():
     db.session.add(new_user)
     db.session.commit()
 
-    access_token = create_access_token(identity=new_user.id, expires_delta=timedelta(days=7))
+    # Convert user_id to string for access token
+    access_token = create_access_token(identity=str(new_user.id), expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'User registered successfully',
@@ -69,7 +70,8 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({'message': 'Invalid credentials'}), 401
 
-    access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
+    # Convert user_id to string for access token
+    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'Login successful',
@@ -115,7 +117,8 @@ def google_login():
         db.session.add(user)
         db.session.commit()
 
-    access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
+    # Convert user_id to string for access token
+    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(days=7))
 
     return jsonify({
         'message': 'Google login successful',
@@ -129,7 +132,7 @@ def google_login():
     }), 200
 
 
-# ✅ Facebook Login
+# ✅ Facebook Login Helper Function
 def exchange_facebook_code_for_token(code):
     try:
         response = requests.get(
@@ -147,6 +150,7 @@ def exchange_facebook_code_for_token(code):
         return None
 
 
+# ✅ Facebook Login Route
 @auth_bp.route('/facebook-login', methods=['POST'])
 def facebook_login():
     code = request.json.get("token")
@@ -176,7 +180,8 @@ def facebook_login():
         db.session.add(user)
         db.session.commit()
 
-    access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
+    # Convert user_id to string for access token
+    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(days=7))
 
     return jsonify({'message': 'Facebook login successful', 'access_token': access_token}), 200
 
@@ -249,13 +254,13 @@ def upload_profile_picture():
 def logout():
     return jsonify({'message': 'Logged out successfully'}), 200
 
-# ✅ Delete Account Route (Improved)
+
 @auth_bp.route('/profile/delete', methods=['DELETE'])
 @jwt_required()
 def delete_account():
     user = User.query.get_or_404(get_jwt_identity())
 
-    # Delete profile picture if it exists
+   
     if user.profile_picture:
         file_path = os.path.join(UPLOAD_FOLDER, user.profile_picture)
         if os.path.exists(file_path):
