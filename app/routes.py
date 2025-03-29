@@ -2,7 +2,7 @@ import os
 import requests
 from flask import Blueprint, request, jsonify
 from app import db, bcrypt
-from app.models import User
+from app.models import User, Playlist
 from flask_wtf.csrf import generate_csrf
 from flask_jwt_extended import (
     create_access_token,
@@ -265,6 +265,8 @@ def logout():
 def delete_account():
     try:
         user = User.query.get_or_404(get_jwt_identity())
+
+        Playlist.query.filter_by(user_id=user.id).delete()
 
        
         if user.profile_picture and user.profile_picture.strip():
