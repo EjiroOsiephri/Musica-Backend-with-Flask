@@ -12,6 +12,7 @@ from flask_jwt_extended import (
 from datetime import timedelta
 from werkzeug.utils import secure_filename
 from flask import send_from_directory
+import uuid
 
 
 auth_bp = Blueprint('auth', __name__)
@@ -106,7 +107,7 @@ def google_login():
             firstname=user_info.get('given_name', 'Unknown'),
             lastname=user_info.get('family_name', 'User'),
             email=user_info['email'],
-            phone='0000000000',
+            phone=f"oauth-{uuid.uuid4().hex[:9]}",
             google_id=user_info.get('sub', '')
         )
         db.session.add(user)
@@ -172,7 +173,7 @@ def facebook_login():
             firstname=user_info.get('first_name', 'Unknown'),
             lastname=user_info.get('last_name', 'User'),
             email=user_info['email'],
-            phone='0000000000',  # Dummy phone number for OAuth users
+            phone=f"oauth-{uuid.uuid4().hex[:9]}",  # Dummy phone number for OAuth users
             facebook_id=user_info.get('id', '')  # Store Facebook ID
         )
         db.session.add(user)
